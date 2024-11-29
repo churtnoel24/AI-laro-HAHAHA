@@ -2,10 +2,14 @@ import cv2
 import numpy as np
 import pygame
 import random
+import mediapipe as mp
 
 # Initialize Pygame and OpenCV
 pygame.init()
 cap = cv2.VideoCapture(0)
+cv2.setUseOptimized(True)
+cv2.ocl.setUseOpenCL(True)
+
 
 logo = pygame.image.load('clearpath - logo.png')
 pygame.display.set_icon(logo)
@@ -103,16 +107,29 @@ def handle_steering(steering_input):
     elif steering_input > 0.6 and car.right < WIDTH:  # Move right
         car.x += dynamic_speed
 
+# Initialize Mediapipe Hands
+mp_hands = mp.solutions.hands
+hands = mp_hands.Hands(min_detection_confidence=0.7, min_tracking_confidence=0.7, model_complexity=0)
+mp_drawing = mp.solutions.drawing_utils
+
 def detect_hand_position(frame):
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    mask = cv2.inRange(hsv, lower_color, upper_color)
-    contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    global hands  # Use the initialized Mediapipe hands object
+
+    # Convert the frame to RGB as required by Mediapipe
+    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    results = hands.process(frame_rgb)
+
     steering_input = 0.5  # Default to center (no movement)
-    if contours:
-        max_contour = max(contours, key=cv2.contourArea)
-        x, y, w, h = cv2.boundingRect(max_contour)
-        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
-        steering_input = (x + w // 2) / frame.shape[1]
+
+    if results.multi_hand_landmarks:
+        for hand_landmarks in results.multi_hand_landmarks:
+            # Get the x-coordinate of the wrist (landmark 0)
+            wrist_x = hand_landmarks.landmark[mp_hands.HandLandmark.WRIST].x
+            steering_input = wrist_x  # Normalize to [0, 1] as required
+
+            # Draw hand landmarks on the OpenCV frame (optional for debugging)
+            mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+
     return steering_input
 
 def reset_game():
@@ -132,6 +149,13 @@ def reset_game():
 def main_game():
     global bg_y, score, base_car_speed, bg_speed
     running = True
+
+    # Floating text variables
+    floating_text = None
+    floating_text_timer = 0
+    floating_text_position = (WIDTH // 2, HEIGHT // 3)  # Text position (adjust as needed)
+    floating_text_duration = 60  # Duration to display text in frames (e.g., 60 frames = 2 seconds at 30 FPS)
+
     while running:
         ret, frame = cap.read()
         if not ret:
@@ -148,6 +172,10 @@ def main_game():
         if score % speed_increment_threshold == 0:
             base_car_speed += 1
             bg_speed += 1
+
+            # Set floating text and timer
+            floating_text = random.choice(["Great Job!", "Amazing!", "Keep Going!"])
+            floating_text_timer = floating_text_duration
 
         # Move obstacles and check for collisions
         for obstacle in obstacles:
@@ -176,6 +204,12 @@ def main_game():
         font = pygame.font.Font(None, 36)
         draw_text(f"Score: {score}", font, (255, 255, 255), screen, 60, 30)
         draw_text(f"High Score: {high_score}", font,(255,255,255),screen, 650, 30)
+
+        # Display floating text if active
+        if floating_text and floating_text_timer > 0:
+            draw_text(floating_text, pygame.font.Font(None, 74), (255, 255, 0), screen,
+                      floating_text_position[0], floating_text_position[1])
+            floating_text_timer -= 1  # Decrease timer
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
