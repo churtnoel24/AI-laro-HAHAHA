@@ -10,8 +10,12 @@ cap = cv2.VideoCapture(0)
 cv2.setUseOptimized(True)
 cv2.ocl.setUseOpenCL(True)
 
+pygame.mixer.init()
+pygame.mixer.music.load("assets/background_music.mp3")
+crash_sound = pygame.mixer.Sound("assets/car-crash.mp3")
 
-logo = pygame.image.load('clearpath - logo.png')
+
+logo = pygame.image.load('assets/clearpath - logo.png')
 pygame.display.set_icon(logo)
 pygame.display.set_caption("ClearPath")
 # Screen dimensions
@@ -20,12 +24,12 @@ screen = pygame.display.set_mode((WIDTH, HEIGHT))
 clock = pygame.time.Clock()
 
 # Load images
-car_image = pygame.image.load('car.png')
+car_image = pygame.image.load('assets/car.png')
 obstacle_images = [
-    pygame.image.load('bato.png'),
-    pygame.image.load('bitak.png')
+    pygame.image.load('assets/bato.png'),
+    pygame.image.load('assets/bitak.png')
 ]
-background_image = pygame.image.load('background.png')
+background_image = pygame.image.load('assets/background.png')
 
 # Resize images if necessary
 car_image = pygame.transform.scale(car_image, (50, 100))
@@ -76,7 +80,7 @@ def show_menu():
     small_font = pygame.font.Font(None, 36)
 
     #Background Splash Art
-    menu_image = pygame.image.load('splashart.jpg')
+    menu_image = pygame.image.load('assets/splashart.jpg')
     menu_image = pygame.transform.scale(menu_image, (WIDTH, HEIGHT))
     menu_image.set_alpha(100)
     while True:
@@ -145,10 +149,40 @@ def reset_game():
         }
         for _ in range(5)
     ]
+def countdown():
+    font = pygame.font.Font(None, 74)  # Large font for countdown
+    countdown_duration = 3  # Countdown duration in seconds
+
+    # Load the sound effect
+    countdown_sound = pygame.mixer.Sound("assets/countdown_sound.mp3")
+
+    for count in range(countdown_duration, 0, -1):  # Countdown from 3 to 1
+        screen.fill((0, 0, 0))  # Black background
+        draw_text(str(count), font, (255, 255, 255), screen, WIDTH // 2, HEIGHT // 2)
+
+        # Play the sound effect
+        countdown_sound.play()
+
+        pygame.display.flip()
+        pygame.time.wait(1000)  # Wait for 1 second
+
+    # Show "GO!" before the game starts
+    screen.fill((0, 0, 0))
+    draw_text("GO!", font, (0, 255, 0), screen, WIDTH // 2, HEIGHT // 2)
+
+
+    pygame.display.flip()
+    pygame.time.wait(500)  # Wait for half a second
+
 
 def main_game():
     global bg_y, score, base_car_speed, bg_speed
+
+    countdown()  # Show countdown before starting the game
     running = True
+
+    # Start playing the background music in a loop
+    pygame.mixer.music.play(-1)  # -1 makes the music loop indefinitely
 
     # Floating text variables
     floating_text = None
@@ -185,6 +219,7 @@ def main_game():
                 obstacle["image"] = random.choice(obstacle_images)
 
             if car.colliderect(obstacle["rect"]):
+                crash_sound.play()
                 show_game_over()
                 running = False
 
@@ -221,6 +256,8 @@ def main_game():
 def show_game_over():
     global score, high_score
 
+    pygame.mixer.music.stop()
+
     if score > high_score:
         high_score = score
         # Save the new high score to the file
@@ -228,7 +265,7 @@ def show_game_over():
             highscore_file.write(str(high_score))  # Write the high score as a string
 
     font = pygame.font.Font(None, 74)
-    gameover_image = pygame.image.load('gameover.jpg')
+    gameover_image = pygame.image.load('assets/gameover.jpg')
     gameover_image = pygame.transform.scale(gameover_image, (WIDTH, HEIGHT))
     gameover_image.set_alpha(100)
     screen.fill((0, 0, 0))
